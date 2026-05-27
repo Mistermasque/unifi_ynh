@@ -36,7 +36,7 @@ commutateurs, passerelles de sécurité et autres équipements UniFi — depuis 
 
 ## Captures d'écran
 
-*(Ajoutez une capture d'écran du tableau de bord UniFi dans `doc/screenshots/` et elle apparaîtra ici.)*
+![Unifi Network Screenshot](./doc/screenshots/UniFi-OS-3.0-Dashboard.png)
 
 ## Prérequis
 

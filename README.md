@@ -36,7 +36,7 @@ switches, security gateways, and other UniFi devices — from a single web inter
 
 ## Screenshots
 
-*(Add a screenshot of the UniFi dashboard to `doc/screenshots/` and it will appear here.)*
+![Unifi Network Screenshot](./doc/screenshots/UniFi-OS-3.0-Dashboard.png)
 
 ## Requirements
 
