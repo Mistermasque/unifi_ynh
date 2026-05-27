@@ -1,0 +1,111 @@
+#!/bin/bash
+
+#=================================================
+# IMPORT GENERIC HELPERS
+#=================================================
+
+source _common.sh
+source /usr/share/yunohost/helpers
+
+### During change_url, YunoHost provides four variables in addition to
+### the standard saved settings:
+###
+###   $old_domain   — domain before the change
+###   $old_path     — path  before the change  (always "/" for this app)
+###   $new_domain   — domain after  the change
+###   $new_path     — path  after  the change
+###
+### The resource system has already updated the saved $domain / $path
+### settings to the new values before this script runs.
+
+#=================================================
+# BLOCK SUB-PATH CHANGE ATTEMPTS
+#=================================================
+# UniFi does not support sub-path routing. The install script already
+# enforces "/" at install time; we enforce it again here so an admin
+# cannot accidentally break the app via change_url.
+#=================================================
+if [ "$new_path" != "/" ]; then
+    ynh_die "UniFi Network must be installed at the root of a domain (path = \"/\"). Sub-path installs (e.g. /unifi) are not supported by the application."
+fi
+
+#=================================================
+# NOTHING TO DO IF ONLY THE PATH CHANGED
+#=================================================
+# Since both old_path and new_path must be "/" (enforced above and at
+# install time), a pure path change with the same domain is a no-op.
+# Guard here for completeness.
+#=================================================
+if [ "$old_domain" = "$new_domain" ] && [ "$old_path" = "$new_path" ]; then
+    ynh_print_info "Domain and path are unchanged — nothing to do."
+    exit 0
+fi
+
+#=================================================
+# STOP THE SERVICE
+#=================================================
+# Stop the service while we swap the nginx vhost. The controller stays
+# down for only a few seconds (no data migration needed for a URL change).
+#=================================================
+ynh_script_progression "Stopping UniFi service..."
+
+ynh_systemctl --service="unifi" --action="stop"
+
+#=================================================
+# UPDATE NGINX CONFIGURATION
+#=================================================
+# ynh_change_url_nginx_config removes the old vhost file
+# (conf.d/<old_domain>.d/<app>.conf) and creates a new one for
+# <new_domain>, then reloads nginx.
+#
+# This is the correct helper for domain changes — do NOT call
+# ynh_config_remove_nginx + ynh_config_add_nginx manually, because
+# ynh_change_url_nginx_config also updates the nginx map file that
+# routes incoming requests to the right app.
+#=================================================
+ynh_script_progression "Updating nginx configuration for new domain..."
+
+ynh_change_url_nginx_config
+
+#=================================================
+# INFORM THE ADMIN ABOUT DEVICE RECONFIGURATION
+#=================================================
+# UniFi devices store the controller's inform URL in their firmware.
+# After a domain change the devices will keep trying to reach the OLD
+# domain until they are manually re-informed or until the old DNS
+# record expires. Print a clear warning so the admin knows what to do.
+#=================================================
+ynh_print_warn "==================================================================="
+ynh_print_warn "IMPORTANT — UniFi device inform URL has changed!"
+ynh_print_warn ""
+ynh_print_warn "Your UniFi devices are still configured to reach the controller at:"
+ynh_print_warn "  http://${old_domain}:8080/inform"
+ynh_print_warn ""
+ynh_print_warn "You must update the inform URL on each device to:"
+ynh_print_warn "  http://${new_domain}:8080/inform"
+ynh_print_warn ""
+ynh_print_warn "Until this is done, devices will show as 'disconnected' in the"
+ynh_print_warn "UniFi dashboard. To re-inform a device via SSH:"
+ynh_print_warn "  ssh <device-ip>"
+ynh_print_warn "  set-inform http://${new_domain}:8080/inform"
+ynh_print_warn ""
+ynh_print_warn "Alternatively, if the old domain still resolves to this server,"
+ynh_print_warn "devices will re-adopt automatically once they next check in."
+ynh_print_warn "==================================================================="
+
+#=================================================
+# START SERVICE
+#=================================================
+ynh_script_progression "Starting UniFi service..."
+
+ynh_systemctl --service="unifi" --action="start"
+
+ynh_script_progression "Waiting for UniFi service to be ready..."
+
+ynh_unifi_wait_until_active
+
+#=================================================
+# END OF SCRIPT
+#=================================================
+
+ynh_script_progression "URL change of $app completed"

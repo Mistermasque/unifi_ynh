@@ -159,36 +159,7 @@ yunohost service add unifi \
 # 300 s (5 min) is generous enough for slow hardware while still
 # failing visibly if something is truly broken.
 #=================================================
-ynh_script_progression "Waiting for UniFi service to be ready..."
-
-_unifi_wait_timeout=300   # seconds before giving up
-_unifi_wait_interval=5    # seconds between each poll
-_unifi_waited=0
-
-while true; do
-    # systemctl is-active returns 0 (exit code) once the unit has
-    # reached the running state. Any other value (activating, failed,
-    # inactive ...) means it is not ready yet.
-    if systemctl is-active --quiet unifi; then
-        ynh_print_info "UniFi service is active."
-        break
-    fi
-
-    # Check for a hard failure so we don't burn the full timeout when
-    # systemd already knows the unit has crashed.
-    _unit_state=$(systemctl is-active unifi 2>/dev/null || true)
-    if [ "$_unit_state" = "failed" ]; then
-        ynh_die "UniFi service entered a failed state. Check the logs with: journalctl -u unifi --no-pager -n 50"
-    fi
-
-    if [ "$_unifi_waited" -ge "$_unifi_wait_timeout" ]; then
-        ynh_die "UniFi service did not become active within ${_unifi_wait_timeout}s (current state: ${_unit_state}). Check the logs with: journalctl -u unifi --no-pager -n 50"
-    fi
-
-    ynh_print_info "UniFi not ready yet (state: ${_unit_state}) — waiting ${_unifi_wait_interval}s (${_unifi_waited}/${_unifi_wait_timeout}s elapsed)..."
-    sleep "$_unifi_wait_interval"
-    _unifi_waited=$(( _unifi_waited + _unifi_wait_interval ))
-done
+ynh_unifi_wait_until_active
 
 #=================================================
 # END OF SCRIPT

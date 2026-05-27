@@ -1,0 +1,117 @@
+#!/bin/bash
+
+#=================================================
+# IMPORT GENERIC HELPERS
+#=================================================
+
+source _common.sh
+source /usr/share/yunohost/helpers
+
+### During upgrade, YunoHost has already:
+###   - Re-provisioned [resources.apt]: refreshed the three APT repos and
+###     upgraded mongodb-org, temurin-17-jdk, and unifi to their latest
+###     versions. The unifi package post-upgrade script may have restarted
+###     the service — we stop it cleanly below before touching anything.
+###   - Loaded all saved settings as bash variables:
+###     $domain, $path, $port, $guest_portal, $speed_test
+###
+### YunoHost also provides two extra variables during upgrade:
+###   $upgrade_type  — "UPGRADE_APP" if the upstream version changed,
+###                    "UPGRADE_PACKAGE" if only the YunoHost packaging
+###                    changed (scripts/conf updated, same app version)
+###   $yunohost_version_upgrading — "1" if YunoHost itself is being upgraded
+
+#=================================================
+# STOP THE SERVICE
+#=================================================
+# Stop the service before modifying nginx config or re-registering it
+# with YunoHost. The apt resource may have already restarted it after
+# the package upgrade — we stop it again here to get a clean state.
+# After a major version upgrade UniFi will run a database migration on
+# the next start; we let that happen at the end of this script.
+#=================================================
+ynh_script_progression "Stopping UniFi service for upgrade..."
+
+ynh_systemctl --service="unifi" --action="stop" || true
+
+#=================================================
+# UPDATE NGINX CONFIGURATION
+#=================================================
+# Re-generate the nginx vhost from conf/nginx.conf. This picks up any
+# changes made to the template between packaging versions (new headers,
+# WebSocket tweaks, etc.) without requiring a manual change_url.
+#=================================================
+ynh_script_progression "Updating nginx configuration..."
+
+ynh_config_add_nginx
+
+#=================================================
+# ENSURE FIREWALL PORTS ARE CORRECT
+#=================================================
+# Re-apply the firewall rules to guarantee consistency after an upgrade,
+# in case ports were closed manually or the packaging logic changed.
+# Idempotent: `yunohost firewall allow` on an already-open port is a no-op.
+#=================================================
+ynh_script_progression "Ensuring firewall ports are open..."
+
+ynh_exec_warn_less yunohost firewall allow UDP 3478
+ynh_exec_warn_less yunohost firewall allow TCP 8080
+ynh_exec_warn_less yunohost firewall allow UDP 10001
+
+if [ "${guest_portal:-0}" -eq 1 ]; then
+    ynh_exec_warn_less yunohost firewall allow TCP 8880
+    ynh_exec_warn_less yunohost firewall allow TCP 8843
+else
+    # Ensure ports are closed if the feature is disabled — guards against
+    # a state where they were opened manually outside YunoHost.
+    ynh_exec_warn_less yunohost firewall disallow TCP 8880 || true
+    ynh_exec_warn_less yunohost firewall disallow TCP 8843 || true
+fi
+
+if [ "${speed_test:-0}" -eq 1 ]; then
+    ynh_exec_warn_less yunohost firewall allow TCP 6789
+else
+    ynh_exec_warn_less yunohost firewall disallow TCP 6789 || true
+fi
+
+#=================================================
+# RE-REGISTER YUNOHOST SERVICE INTEGRATION
+#=================================================
+# Re-calling `yunohost service add` is the correct way to update the
+# service registration if flags change between packaging versions.
+# It is safe to call even if the service is already registered —
+# it overwrites the existing entry with the current parameters.
+#=================================================
+ynh_script_progression "Re-registering UniFi service in YunoHost..."
+
+yunohost service add unifi \
+    --description="UniFi Network Controller" \
+    --log="/var/log/unifi/server.log"
+
+#=================================================
+# START SERVICE AND WAIT
+#=================================================
+# After a major version upgrade UniFi will perform a MongoDB schema
+# migration before its HTTP listener becomes available. This can take
+# several minutes on large databases — the shared wait helper handles
+# the polling loop with a 5-minute timeout.
+#=================================================
+ynh_script_progression "Starting UniFi service..."
+
+ynh_systemctl --service="unifi" --action="start"
+
+# Warn the admin if this looks like a major app version upgrade, since
+# the migration window can be several minutes.
+if [ "${upgrade_type:-}" = "UPGRADE_APP" ]; then
+    ynh_print_info "This is an application version upgrade. UniFi may run a database migration on first start — this can take several minutes on large deployments."
+fi
+
+ynh_script_progression "Waiting for UniFi service to be ready..."
+
+ynh_unifi_wait_until_active
+
+#=================================================
+# END OF SCRIPT
+#=================================================
+
+ynh_script_progression "Upgrade of $app completed"
