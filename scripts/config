@@ -1,0 +1,202 @@
+#!/bin/bash
+# =============================================================================
+# scripts/config — Custom getters, setters and validators for UniFi
+#
+# Called by YunoHost when the admin reads or writes values from the config
+# panel (config_panel.toml).
+#
+# Functions follow the naming convention:
+#   get__OPTION_ID()   — called when YunoHost reads the current value
+#   set__OPTION_ID()   — called when YunoHost writes a new value
+#
+# All options that use  bind = "null"  in config_panel.toml MUST have a
+# getter here. Options with a setter here override the automatic write
+# behaviour even if bind is set.
+#
+# Keep the last two lines of this file exactly as-is — they are required
+# by the YunoHost config framework.
+# =============================================================================
+
+source /usr/share/yunohost/helpers
+
+# -----------------------------------------------------------------------------
+# Helper — check whether a TCP/UDP port is currently allowed in the firewall
+# Usage:  _firewall_has_port TCP 8880   → returns 0 (yes) or 1 (no)
+# -----------------------------------------------------------------------------
+_firewall_has_port() {
+    local proto="${1,,}"   # to lower case tcp or udp
+    local port="$2"
+    yunohost firewall list --protocol=$proto | grep -q "^ *- ${port}$"
+}
+
+# =============================================================================
+# FEATURE: guest_portal
+# Firewall ports: TCP 8880 (HTTP redirect) + TCP 8843 (HTTPS redirect)
+# =============================================================================
+
+get__guest_portal() {
+    # Consider the feature "on" only when BOTH ports are open
+    if _firewall_has_port TCP 8880 && _firewall_has_port TCP 8843; then
+        echo "1"
+    else
+        echo "0"
+    fi
+}
+
+set__guest_portal() {
+    # $guest_portal is automatically available as the user-submitted value
+    if [ "$guest_portal" -eq 1 ]; then
+        ynh_print_info "Opening guest portal firewall ports (TCP 8880, TCP 8843)..."
+        ynh_exec_warn_less yunohost firewall allow TCP 8880
+        ynh_exec_warn_less yunohost firewall allow TCP 8843
+    else
+        ynh_print_info "Closing guest portal firewall ports (TCP 8880, TCP 8843)..."
+        ynh_exec_warn_less yunohost firewall disallow TCP 8880 || true
+        ynh_exec_warn_less yunohost firewall disallow TCP 8843 || true
+    fi
+}
+
+# =============================================================================
+# FEATURE: speed_test
+# Firewall port: TCP 6789
+# =============================================================================
+
+get__speed_test() {
+    if _firewall_has_port TCP 6789; then
+        echo "1"
+    else
+        echo "0"
+    fi
+}
+
+set__speed_test() {
+    if [ "$speed_test" -eq 1 ]; then
+        ynh_print_info "Opening speed test firewall port (TCP 6789)..."
+        ynh_exec_warn_less yunohost firewall allow TCP 6789
+    else
+        ynh_print_info "Closing speed test firewall port (TCP 6789)..."
+        ynh_exec_warn_less yunohost firewall disallow TCP 6789 || true
+    fi
+}
+
+# =============================================================================
+# STATUS: unifi_status  — live systemd state of the unifi service
+# =============================================================================
+
+get__unifi_status() {
+    local state
+    state=$(systemctl is-active unifi 2>/dev/null || echo "unknown")
+
+    case "$state" in
+        active)
+            cat << EOF
+style: success
+ask:
+  en: "UniFi controller is running"
+  fr: "Le contrôleur UniFi est en cours d'exécution"
+EOF
+            ;;
+        activating)
+            cat << EOF
+style: warning
+ask:
+  en: "UniFi controller is starting up…"
+  fr: "Le contrôleur UniFi démarre…"
+EOF
+            ;;
+        failed)
+            cat << EOF
+style: danger
+ask:
+  en: "UniFi controller has FAILED — check logs with: journalctl -u unifi"
+  fr: "Le contrôleur UniFi est en ERREUR — consultez les logs : journalctl -u unifi"
+EOF
+            ;;
+        *)
+            cat << EOF
+style: warning
+ask:
+  en: "UniFi controller is not running (state: ${state})"
+  fr: "Le contrôleur UniFi n'est pas actif (état : ${state})"
+EOF
+            ;;
+    esac
+}
+
+# =============================================================================
+# STATUS: mongodb_status  — live systemd state of mongod
+# =============================================================================
+
+get__mongodb_status() {
+    local state
+    state=$(systemctl is-active mongod 2>/dev/null || echo "unknown")
+
+    case "$state" in
+        active)
+            cat << EOF
+style: success
+ask:
+  en: "MongoDB is running"
+  fr: "MongoDB est en cours d'exécution"
+EOF
+            ;;
+        failed)
+            cat << EOF
+style: danger
+ask:
+  en: "MongoDB has FAILED — check logs with: journalctl -u mongod"
+  fr: "MongoDB est en ERREUR — consultez les logs : journalctl -u mongod"
+EOF
+            ;;
+        *)
+            cat << EOF
+style: warning
+ask:
+  en: "MongoDB is not running (state: ${state})"
+  fr: "MongoDB n'est pas actif (état : ${state})"
+EOF
+            ;;
+    esac
+}
+
+# =============================================================================
+# STATUS: firewall_summary  — human-readable list of open UniFi ports
+# =============================================================================
+
+get__firewall_summary() {
+    local open_ports=""
+
+    # Core ports (always expected open)
+    _firewall_has_port UDP 3478  && open_ports+="UDP 3478 (STUN)\n"
+    _firewall_has_port TCP 8080  && open_ports+="TCP 8080 (Inform)\n"
+    _firewall_has_port UDP 10001 && open_ports+="UDP 10001 (Discovery)\n"
+
+    # Optional ports
+    _firewall_has_port TCP 8880  && open_ports+="TCP 8880 (Guest portal HTTP)\n"
+    _firewall_has_port TCP 8843  && open_ports+="TCP 8843 (Guest portal HTTPS)\n"
+    _firewall_has_port TCP 6789  && open_ports+="TCP 6789 (Speed test)\n"
+
+    if [ -z "$open_ports" ]; then
+        cat << EOF
+style: danger
+ask:
+  en: "No UniFi firewall ports are open — controller may not be reachable by devices"
+  fr: "Aucun port pare-feu UniFi n'est ouvert — le contrôleur n'est peut-être pas joignable par les équipements"
+EOF
+    else
+        # Trim trailing newline for clean YAML output
+        local ports_clean
+        ports_clean=$(printf "%b" "$open_ports" | sed '/^$/d')
+        cat << EOF
+style: success
+ask:
+  en: "Open ports:\n${ports_clean}"
+  fr: "Ports ouverts :\n${ports_clean}"
+EOF
+    fi
+}
+
+# =============================================================================
+# Required by YunoHost — do not remove or move these two lines
+# =============================================================================
+ynh_app_config_run "$1"

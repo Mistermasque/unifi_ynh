@@ -1,0 +1,181 @@
+version = "1.0"
+
+# =============================================================================
+# UniFi Network — YunoHost configuration panel
+#
+# Structure:  panel > section > option
+# Panel IDs are used in CLI:  yunohost app config set unifi <panel>.<section>.<option>=<value>
+#
+# The "bind" property tells YunoHost where the real value lives:
+#   bind = "null"  → no automatic read/write; handled by a custom getter/setter
+#                    in scripts/config
+#   (no bind)      → value is read/written from YunoHost settings only
+#
+# For options that toggle firewall ports, there is no config file to
+# read/write — the getter reads the live firewall state and the setter
+# opens/closes ports. All such options use  bind = "null"  and have
+# matching get__XXX / set__XXX functions in scripts/config.
+# =============================================================================
+
+
+# =============================================================================
+# PANEL: features — Optional UniFi features that affect the firewall
+# =============================================================================
+[features]
+name.en = "Optional Features"
+name.fr = "Fonctionnalités optionnelles"
+help.en = "Enable or disable optional UniFi features. Each feature may open or close firewall ports accordingly."
+help.fr = "Activez ou désactivez les fonctionnalités optionnelles d'UniFi. Chaque fonctionnalité peut ouvrir ou fermer des ports dans le pare-feu."
+# Reload nginx + unifi after any change in this panel
+services = ["nginx", "unifi"]
+
+    # -------------------------------------------------------------------------
+    # Section: guest_portal_section
+    # -------------------------------------------------------------------------
+    [features.guest_portal_section]
+    name.en = "Guest Portal"
+    name.fr = "Portail Invité"
+
+        [features.guest_portal_section.guest_portal]
+        ask.en = "Enable guest portal feature"
+        ask.fr = "Activer la fonctionnalité de portail invité"
+        help.en = "When enabled, TCP ports 8880 (HTTP redirect) and 8843 (HTTPS redirect) are opened in the firewall. This is required when using the captive guest portal on your UniFi access points."
+        help.fr = "Lorsqu'activé, les ports TCP 8880 (redirection HTTP) et 8843 (redirection HTTPS) sont ouverts dans le pare-feu. Nécessaire pour utiliser le portail captif invité sur les points d'accès UniFi."
+        type = "boolean"
+        default = false
+        # Firewall state cannot be parsed from a config file — custom
+        # getter/setter in scripts/config reads/writes firewall rules.
+        bind = "null"
+
+    # -------------------------------------------------------------------------
+    # Section: speed_test_section
+    # -------------------------------------------------------------------------
+    [features.speed_test_section]
+    name.en = "Mobile Speed Test"
+    name.fr = "Test de Vitesse Mobile"
+
+        [features.speed_test_section.speed_test]
+        ask.en = "Enable mobile speed test feature"
+        ask.fr = "Activer la fonctionnalité de test de vitesse mobile"
+        help.en = "When enabled, TCP port 6789 is opened in the firewall. This is required to run speed tests from the UniFi mobile app."
+        help.fr = "Lorsqu'activé, le port TCP 6789 est ouvert dans le pare-feu. Nécessaire pour effectuer des tests de vitesse depuis l'application mobile UniFi."
+        type = "boolean"
+        default = false
+        # Same pattern: custom getter/setter in scripts/config
+        bind = "null"
+
+
+# =============================================================================
+# PANEL: controller — UniFi controller settings (system.properties)
+#
+# UniFi stores low-level settings in /var/lib/unifi/system.properties.
+# The file uses a Java .properties format (key=value), which YunoHost can
+# read/write automatically via  bind = "key:/path/to/file".
+# =============================================================================
+[controller]
+name.en = "Controller Settings"
+name.fr = "Paramètres du contrôleur"
+help.en = "Advanced UniFi controller settings. The controller service will be restarted when changes are saved."
+help.fr = "Paramètres avancés du contrôleur UniFi. Le service contrôleur sera redémarré lors de la sauvegarde des modifications."
+services = ["unifi"]
+
+    # -------------------------------------------------------------------------
+    # Section: ports_section — Internal port overrides
+    # (Only relevant for power users; most deployments keep the defaults)
+    # -------------------------------------------------------------------------
+    [controller.ports_section]
+    name.en = "Internal Ports"
+    name.fr = "Ports internes"
+    help.en = "Change the internal ports used by the UniFi controller. Warning: changing these values requires manually updating the firewall and nginx configuration accordingly."
+    help.fr = "Modifiez les ports internes utilisés par le contrôleur UniFi. Attention : modifier ces valeurs nécessite de mettre à jour manuellement le pare-feu et la configuration nginx."
+
+        [controller.ports_section.unifi_http_port]
+        ask.en = "Device communication port (inform)"
+        ask.fr = "Port de communication des équipements (inform)"
+        help.en = "TCP port used by UniFi devices to communicate with the controller (default: 8080). Do not change unless you have a specific reason."
+        help.fr = "Port TCP utilisé par les équipements UniFi pour communiquer avec le contrôleur (défaut : 8080). Ne pas modifier sans raison particulière."
+        type = "number"
+        default = 8080
+        # Maps to  unifi.http.port  in system.properties
+        bind = "unifi.http.port:/var/lib/unifi/system.properties"
+
+        [controller.ports_section.unifi_shutdown_port]
+        ask.en = "Controller shutdown port"
+        ask.fr = "Port d'arrêt du contrôleur"
+        help.en = "TCP port used internally to shut down the controller (default: 8081). Only change if 8081 conflicts with another service."
+        help.fr = "Port TCP utilisé en interne pour arrêter le contrôleur (défaut : 8081). Ne modifier que si 8081 entre en conflit avec un autre service."
+        type = "number"
+        default = 8081
+        bind = "unifi.shutdown.port:/var/lib/unifi/system.properties"
+
+    # -------------------------------------------------------------------------
+    # Section: performance_section — JVM heap tuning
+    # -------------------------------------------------------------------------
+    [controller.performance_section]
+    name.en = "Performance"
+    name.fr = "Performances"
+
+        [controller.performance_section.unifi_jvm_max_heap]
+        ask.en = "Maximum JVM heap size (MB)"
+        ask.fr = "Taille maximale du tas JVM (Mo)"
+        help.en = "Maximum RAM the UniFi Java process may use, in megabytes (default: 1024). Increase for large deployments (100+ devices). Requires a controller restart."
+        help.fr = "RAM maximale que le processus Java UniFi peut utiliser, en mégaoctets (défaut : 1024). Augmentez pour les déploiements importants (100+ équipements). Nécessite un redémarrage du contrôleur."
+        type = "number"
+        default = 1024
+        bind = "unifi.xmx:/var/lib/unifi/system.properties"
+
+        [controller.performance_section.unifi_jvm_init_heap]
+        ask.en = "Initial JVM heap size (MB)"
+        ask.fr = "Taille initiale du tas JVM (Mo)"
+        help.en = "Initial RAM allocated to the UniFi Java process, in megabytes (default: 1024). Should be equal to or less than the maximum heap size."
+        help.fr = "RAM initiale allouée au processus Java UniFi, en mégaoctets (défaut : 1024). Doit être inférieur ou égal à la taille maximale du tas."
+        type = "number"
+        default = 1024
+        bind = "unifi.xms:/var/lib/unifi/system.properties"
+
+
+# =============================================================================
+# PANEL: status — Read-only live status indicators
+#
+# All options here use  bind = "null"  with custom getters in scripts/config.
+# Nothing is writable in this panel (readonly = true on each option).
+# =============================================================================
+[status]
+name.en = "Status"
+name.fr = "État"
+help.en = "Live status of the UniFi controller and its dependencies. Read-only."
+help.fr = "État en temps réel du contrôleur UniFi et de ses dépendances. Lecture seule."
+
+    [status.service_status_section]
+    name.en = "Services"
+    name.fr = "Services"
+
+        [status.service_status_section.unifi_status]
+        ask.en = "UniFi controller"
+        ask.fr = "Contrôleur UniFi"
+        type = "alert"
+        style = "info"
+        bind = "null"
+        # get__unifi_status() in scripts/config returns style+ask based on
+        # `systemctl is-active unifi`
+
+        [status.service_status_section.mongodb_status]
+        ask.en = "MongoDB"
+        ask.fr = "MongoDB"
+        type = "alert"
+        style = "info"
+        bind = "null"
+        # get__mongodb_status() in scripts/config — checks mongod service
+
+    [status.firewall_status_section]
+    name.en = "Open Firewall Ports"
+    name.fr = "Ports pare-feu ouverts"
+
+        [status.firewall_status_section.firewall_summary]
+        ask.en = "Currently open UniFi ports"
+        ask.fr = "Ports UniFi actuellement ouverts"
+        type = "alert"
+        style = "info"
+        bind = "null"
+        # get__firewall_summary() in scripts/config calls
+        # `yunohost firewall list` and formats the result

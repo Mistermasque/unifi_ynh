@@ -1,0 +1,146 @@
+#!/bin/bash
+
+#=================================================
+# IMPORT GENERIC HELPERS
+#=================================================
+
+source _common.sh
+source /usr/share/yunohost/helpers
+
+### All settings saved at install time are automatically loaded as bash
+### variables before this script runs:
+###   $domain        — the domain the app was installed on
+###   $port          — 8443
+###   $guest_portal  — "1" or "0"
+###   $speed_test    — "1" or "0"
+###
+### The [resources.apt] extras (MongoDB, Adoptium, UniFi repos + packages)
+### are deprovisioned AUTOMATICALLY by YunoHost after this script exits.
+### Do NOT call apt-get remove / purge for those packages here — the
+### resource system handles it.
+###
+### $YNH_APP_PURGE is set to "1" when the admin chose "remove and purge
+### data". Use it to decide whether to delete UniFi's data directory.
+
+#=================================================
+# STOP THE SERVICE
+#=================================================
+# Stop unifi before anything else so it releases file handles and ports.
+# Ignore errors: if it is already stopped (crash, previous failed remove)
+# we must not abort the rest of the cleanup.
+#=================================================
+ynh_script_progression "Stopping UniFi service..."
+
+ynh_systemctl --service="unifi" --action="stop" || true
+
+#=================================================
+# REMOVE YUNOHOST SERVICE INTEGRATION
+#=================================================
+# Unregisters the service from the YunoHost admin UI and service tracker.
+# Must be called BEFORE the package is removed (apt removes the unit file).
+#=================================================
+ynh_script_progression "Removing UniFi service from YunoHost..."
+
+yunohost service remove unifi
+
+#=================================================
+# REMOVE NGINX CONFIGURATION
+#=================================================
+# Removes the reverse-proxy vhost and reloads nginx.
+# This is the counterpart of ynh_config_add_nginx in the install script.
+#=================================================
+ynh_script_progression "Removing nginx configuration..."
+
+ynh_config_remove_nginx
+
+#=================================================
+# CLOSE FIREWALL PORTS
+#=================================================
+# Close every port that was opened during install.
+# We use "|| true" on every call so that a port that was never opened
+# (e.g. guest_portal=0 at install time) does not abort the script.
+#
+# Core ports — always close them regardless of settings, because they
+# are always opened unconditionally in the install script.
+#=================================================
+ynh_script_progression "Closing firewall ports..."
+
+ynh_hide_warnings yunohost firewall delete 3478 -p udp  || true
+ynh_hide_warnings yunohost firewall delete 8080 -p tcp  || true
+ynh_hide_warnings yunohost firewall delete 10001 -p udp || true
+
+# Guest portal ports — only close if the feature was enabled at install
+# (or later toggled on via the config panel). We try regardless with
+# "|| true" so a misconfigured state never blocks removal.
+if [ "${guest_portal:-0}" -eq 1 ]; then
+    ynh_script_progression "Closing guest portal firewall ports (8880, 8843)..."
+fi
+ynh_hide_warnings yunohost firewall delete 8880 -p tcp  || true
+ynh_hide_warnings yunohost firewall delete 8843 -p tcp  || true
+
+# Speed test port — same pattern
+if [ "${speed_test:-0}" -eq 1 ]; then
+    ynh_script_progression "Closing speed test firewall port (6789)..."
+fi
+ynh_hide_warnings yunohost firewall delete 6789 -p tcp  || true
+
+#=================================================
+# PURGE DATA (only if the admin requested it)
+#=================================================
+# /var/lib/unifi  — network configuration, device database, backups
+# /var/log/unifi  — log files
+#
+# These directories belong to the unifi Debian package, not to YunoHost
+# resources, so they are NOT cleaned up automatically. We must handle
+# them explicitly when the admin chooses "purge".
+#
+# WARNING: purging /var/lib/unifi is irreversible — all controller
+# configuration, adopted device records and local backups are lost.
+#=================================================
+if [ "${YNH_APP_PURGE:-0}" -eq 1 ]; then
+    ynh_script_progression "Purging UniFi data directories..."
+
+    ynh_safe_rm "/var/lib/unifi"
+    ynh_safe_rm "/var/log/unifi"
+    ynh_safe_rm "/var/run/unifi"
+fi
+
+#=================================================
+# REMOVE APPLICATION PACKAGE
+#=================================================
+ynh_script_progression "Removing $app from the system..."
+
+apt-get remove --purge -y unifi
+apt-get autoremove -y
+
+
+#=================================================
+# REMOVE SYSTEM CONFIGURATION
+#=================================================
+ynh_script_progression "Remove mongodb repository..."
+
+ynh_safe_rm "/etc/apt/keyrings/mongodb-server-8.0.gpg"
+ynh_safe_rm "/etc/apt/sources.list.d/mongodb-org-8.0.sources"
+
+
+ynh_script_progression "Remove Adoptium repository..."
+
+ynh_safe_rm "/etc/apt/keyrings/adoptium.gpg"
+ynh_safe_rm "/etc/apt/sources.list.d/adoptium.sources"
+
+
+ynh_script_progression "Remove Unifi repository..."
+
+ynh_safe_rm "/etc/apt/keyrings/unifi.gpg"
+ynh_safe_rm "/etc/apt/sources.list.d/unifi.sources"
+
+
+ynh_script_progression "Updating apt..."
+
+apt-get update
+
+#=================================================
+# END OF SCRIPT
+#=================================================
+
+ynh_script_progression "Removal of $app completed"

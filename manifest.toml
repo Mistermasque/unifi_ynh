@@ -1,0 +1,117 @@
+#:schema https://raw.githubusercontent.com/YunoHost/apps/master/schemas/manifest.v2.schema.json
+packaging_format = 2
+
+id = "unifi"
+name = "UniFi Network"
+description.en = "Self-hosted UniFi Network controller to manage Ubiquiti devices"
+description.fr = "Contrôleur réseau UniFi auto-hébergé pour gérer les équipements Ubiquiti"
+
+version = "8.6.9~ynh1"
+
+maintainers = ["Mistermasque"]
+
+[upstream]
+license = "proprietary"
+website = "https://ui.com/download/releases/network-server"
+admindoc = "https://help.ui.com/hc/en-us/articles/220066768"
+
+[integration]
+yunohost = ">= 12.0.9"
+helpers_version = "2.1"
+# UniFi only publishes amd64 packages via their official APT repository.
+# arm64 requires a manual .deb download and is not supported here.
+architectures = ["amd64", "arm64"]
+multi_instance = false
+ldap = false
+sso = "not_relevant"
+disk = "20G"
+ram.build = "100M"
+ram.runtime = "2G"
+
+[install]
+
+    [install.domain]
+    # Generic question: YunoHost handles the ask string automatically
+    type = "domain"
+
+
+    [install.init_main_permission]
+    # UniFi manages its own login — expose to visitors so nginx just
+    # forwards traffic without an extra SSO layer in front.
+    type = "group"
+    default = "admins"
+
+    [install.guest_portal]
+    ask.en = "Enable guest portal feature?"
+    ask.fr = "Activer la fonctionnalité de portail invité ?"
+    help.en = "Opens TCP 8880 (HTTP redirect) and TCP 8843 (HTTPS redirect) in the firewall. Required if you use UniFi's captive guest portal on your access points."
+    help.fr = "Ouvre les ports TCP 8880 (redirection HTTP) et TCP 8843 (redirection HTTPS) dans le pare-feu. Nécessaire si vous utilisez le portail captif invité sur vos points d'accès."
+    type = "boolean"
+    default = false
+
+    [install.speed_test]
+    ask.en = "Enable mobile speed test feature?"
+    ask.fr = "Activer la fonctionnalité de test de vitesse mobile ?"
+    help.en = "Opens TCP 6789 in the firewall. Required if you want to run speed tests from the UniFi mobile app."
+    help.fr = "Ouvre le port TCP 6789 dans le pare-feu. Nécessaire si vous souhaitez effectuer des tests de vitesse depuis l'application mobile UniFi."
+    type = "boolean"
+    default = false
+
+[resources]
+
+    # ------------------------------------------------------------------
+    # [resources.apt] — all three external repositories are declared
+    # here using the YunoHost `extras` mechanism.
+    #
+    # How `extras` works at runtime:
+    #   1. YunoHost downloads the `key` URL and dearmors it to
+    #      /etc/apt/trusted.gpg.d/<name>.gpg
+    #   2. It writes a one-liner to
+    #      /etc/apt/sources.list.d/<app>-<name>.list
+    #      using the `repo` string verbatim.
+    #   3. It runs `apt-get update` then installs `packages`.
+    #   4. On app removal it undoes steps 1-3 automatically.
+    #
+    # The repo one-liner supports inline APT options such as
+    # [ arch=amd64 signed-by=/path ] — we use this to pin each repo
+    # to amd64 only (UniFi, Adoptium) or to the current arch (MongoDB).
+    #
+    # MongoDB's suite includes the Debian codename (e.g.
+    # "bookworm/mongodb-org/8.0"). Since `extras.repo` is a static
+    # string, we cannot interpolate $VERSION_CODENAME there directly.
+    # `packages_from_raw_bash` runs as bash at provisioning time so we
+    # use it to emit nothing (packages are already listed in `packages`)
+    # while capturing the codename — but the suite must be static.
+    # Solution: we hardcode "bookworm" (Debian 12) which is the current
+    # YunoHost base. Add a comment to update this when YunoHost moves
+    # to trixie (Debian 13).
+    # ------------------------------------------------------------------
+    [resources.apt]
+
+    # Bootstrap packages needed before any HTTPS repo can be reached.
+    # gnupg is required by ynh_install_extra_app_dependencies to dearmor keys.
+    packages = ["ca-certificates", "apt-transport-https", "gnupg"]
+
+
+    # ------------------------------------------------------------------
+    # Port 8443 is the UniFi web UI. Declared as fixed because UniFi
+    # hard-codes it internally. YunoHost registers it to prevent
+    # conflicts; nginx reverse-proxies it so it is NOT exposed directly.
+    # ------------------------------------------------------------------
+    [resources.ports]
+    main.default = 8443
+    main.fixed   = true
+
+    # ------------------------------------------------------------------
+    # auth_header = false prevents YunoHost from injecting SSO headers
+    # that would confuse UniFi's own login page.
+    # ------------------------------------------------------------------
+    [resources.permissions]
+    main.url = "/"
+    main.auth_header = false
+
+    # ------------------------------------------------------------------
+    # No [resources.system_user] or [resources.install_dir]:
+    # the unifi Debian package manages its own "unifi" system user and
+    # writes to /var/lib/unifi, /var/log/unifi, /var/run/unifi itself.
+    # ------------------------------------------------------------------
