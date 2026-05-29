@@ -9,69 +9,12 @@ source /usr/share/yunohost/helpers
 
 ### Variables automatically available from the manifest:
 ###   $domain        — chosen domain
-###   $port          — 8443 (fixed, from [resources.ports])
+###   $port_ui       — 8443 (fixed, from [resources.ports] "ui")
 ###   $guest_portal  — "1" or "0"  (boolean install question)
 ###   $speed_test    — "1" or "0"  (boolean install question)
 ###
 ### The three APT repositories (MongoDB, Adoptium, UniFi) and their
 ### packages are fully provisioned by [resources.apt] in the manifest
-### BEFORE this script runs. There is nothing left to do here for repo
-### setup or package installation.
-
-#=================================================
-# DOWNLOAD, CHECK AND UNPACK SOURCE
-#=================================================
-
-# Load os infos
-. /etc/os-release
-
-ynh_script_progression "Add mongodb repository..."
-
-curl -fsSL https://pgp.mongodb.com/server-8.0.asc | \
- gpg -o /etc/apt/keyrings/mongodb-server-8.0.gpg \
- --dearmor --yes
-
-printf '%s\n' \
-'Types: deb' \
-'URIs: https://repo.mongodb.org/apt/debian' \
-"Suites: $VERSION_CODENAME/mongodb-org/8.0" \
-'Components: main' \
-"Architectures: $(dpkg --print-architecture)" \
-'Signed-By: /etc/apt/keyrings/mongodb-server-8.0.gpg' > /etc/apt/sources.list.d/mongodb-org-8.0.sources
-
-
-ynh_script_progression "Add Adoptium repository..."
-
-curl -fsSL https://packages.adoptium.net/artifactory/api/gpg/key/public | \
-  sudo gpg --dearmor --yes -o /etc/apt/keyrings/adoptium.gpg
-
-printf '%s\n' \
-'Types: deb' \
-'URIs: https://packages.adoptium.net/artifactory/deb' \
-"Suites: $VERSION_CODENAME" \
-'Components: main' \
-"Architectures: $(dpkg --print-architecture)" \
-'Signed-By: /etc/apt/keyrings/adoptium.gpg' > /etc/apt/sources.list.d/adoptium.sources
-
-
-ynh_script_progression "Add Unifi repository..."
-
-curl -fsSL https://dl.ui.com/unifi/unifi-repo.gpg | \
- sudo gpg -o /etc/apt/keyrings/unifi.gpg \
- --dearmor
-
-printf '%s\n' \
-'Types: deb' \
-'URIs: https://www.ui.com/downloads/unifi/debian' \
-"Suites: stable" \
-'Components: ubiquiti' \
-"Architectures: $(dpkg --print-architecture)" \
-'Signed-By: /etc/apt/keyrings/unifi.gpg' > /etc/apt/sources.list.d/unifi.sources
-
-ynh_script_progression "Install Unifi package..."
-
-apt-get update
-apt-get install unifi -y
 
 
 #=================================================
@@ -88,43 +31,7 @@ ynh_config_add_nginx
 #=================================================
 # OPEN FIREWALL PORTS
 #=================================================
-# Port 8443 is reverse-proxied by nginx — do NOT expose it directly.
-#
-# Always-required ports for device <-> controller communication:
-#   UDP 3478   STUN — NAT traversal for APs / switches
-#   TCP 8080   Inform channel — devices phone home to the controller
-#   UDP 10001  Device discovery (L2/L3 broadcast)
-#
-# Conditionally-required ports driven by install questions:
-#   TCP 8880   HTTP  guest-portal redirect  ($guest_portal)
-#   TCP 8843   HTTPS guest-portal redirect  ($guest_portal)
-#   TCP 6789   Mobile speed test            ($speed_test)
-# If more port needed : https://help.ui.com/hc/en-us/articles/218506997-Required-Ports-Reference
-#=================================================
-ynh_script_progression "Opening required firewall ports..."
-
-# Required ports (always opened)
-ynh_hide_warnings yunohost firewall open 3478 "Unifi STUN (Session Traversal Utilities for NAT)" -p udp
-ynh_hide_warnings yunohost firewall open 8080 "Unifi device management traffic" -p tcp
-ynh_hide_warnings yunohost firewall open 10001 "Unifi device discovery" -p udp
-
-# Optionnal ports
-
-ynh_script_progression "Create guest portal firewall ports rules (8880, 8843)..."
-ynh_hide_warnings yunohost firewall open 8880 "Unifi Hotspot portail redirection (HTTP)" -p tcp
-ynh_hide_warnings yunohost firewall open 8843 "Unifi Hotspot portail redirection (HTTPS)" -p tcp
-# Close thoses ports if not used (but will be still present in yunohost firewall config)
-if [ "$guest_portal" -eq 0 ]; then
-    ynh_hide_warnings yunohost firewall disallow TCP 8880
-    ynh_hide_warnings yunohost firewall disallow TCP 8843
-fi
-
-ynh_script_progression "Create speed test firewall port rules (6789)..."
-ynh_hide_warnings yunohost firewall open 6789 "Unifi mobile speed test" -p tcp
-# Close thoses ports if not used (but will be still present in yunohost firewall config)
-if [ "$speed_test" -eq 0 ]; then
-    ynh_hide_warnings yunohost firewall disallow TCP 6789
-fi
+ynh_unifi_open_ports
 
 #=================================================
 # INTEGRATE UNIFI SYSTEMD SERVICE IN YUNOHOST

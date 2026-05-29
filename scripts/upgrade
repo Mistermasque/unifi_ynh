@@ -52,27 +52,7 @@ ynh_config_add_nginx
 # in case ports were closed manually or the packaging logic changed.
 # Idempotent: `yunohost firewall allow` on an already-open port is a no-op.
 #=================================================
-ynh_script_progression "Ensuring firewall ports are open..."
-
-ynh_exec_warn_less yunohost firewall allow UDP 3478
-ynh_exec_warn_less yunohost firewall allow TCP 8080
-ynh_exec_warn_less yunohost firewall allow UDP 10001
-
-if [ "${guest_portal:-0}" -eq 1 ]; then
-    ynh_exec_warn_less yunohost firewall allow TCP 8880
-    ynh_exec_warn_less yunohost firewall allow TCP 8843
-else
-    # Ensure ports are closed if the feature is disabled — guards against
-    # a state where they were opened manually outside YunoHost.
-    ynh_exec_warn_less yunohost firewall disallow TCP 8880 || true
-    ynh_exec_warn_less yunohost firewall disallow TCP 8843 || true
-fi
-
-if [ "${speed_test:-0}" -eq 1 ]; then
-    ynh_exec_warn_less yunohost firewall allow TCP 6789
-else
-    ynh_exec_warn_less yunohost firewall disallow TCP 6789 || true
-fi
+ynh_unifi_open_ports
 
 #=================================================
 # RE-REGISTER YUNOHOST SERVICE INTEGRATION

@@ -21,12 +21,12 @@ source /usr/share/yunohost/helpers
 #=================================================
 # BLOCK SUB-PATH CHANGE ATTEMPTS
 #=================================================
-# UniFi does not support sub-path routing. The install script already
-# enforces "/" at install time; we enforce it again here so an admin
-# cannot accidentally break the app via change_url.
+# UniFi does not support sub-path routing. Even though the path
+# question is not shown at install time (domain-only), change_url
+# could theoretically be called with a non-root path.
 #=================================================
 if [ "$new_path" != "/" ]; then
-    ynh_die "UniFi Network must be installed at the root of a domain (path = \"/\"). Sub-path installs (e.g. /unifi) are not supported by the application."
+    ynh_die "UniFi Network must stay at the root of a domain (path = \"/\"). Sub-path installs are not supported by the application."
 fi
 
 #=================================================

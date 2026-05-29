@@ -7,6 +7,8 @@
 source ../settings/scripts/_common.sh
 source /usr/share/yunohost/helpers
 
+ynh_print_info "Declaring files to be backed up..."
+
 ### In a backup script, settings are loaded from the existing install:
 ###   $domain, $path, $port, $guest_portal, $speed_test
 ###
@@ -24,7 +26,6 @@ source /usr/share/yunohost/helpers
 # Restored by ynh_config_add_nginx in the restore script (re-generated
 # from the template, so this is mainly for auditing / diff purposes).
 #=================================================
-ynh_script_progression "Backing up nginx configuration..."
 
 ynh_backup "/etc/nginx/conf.d/$domain.d/$app.conf"
 
@@ -45,7 +46,6 @@ ynh_backup "/etc/nginx/conf.d/$domain.d/$app.conf"
 # MongoDB data files grow with network size) so it is excluded from
 # the "light" backup strategy and the admin is warned about size.
 #=================================================
-ynh_script_progression "Backing up UniFi data directory..."
 
 ynh_backup --src_path="/var/lib/unifi" --is_big
 
@@ -57,7 +57,6 @@ ynh_backup --src_path="/var/lib/unifi" --is_big
 # because log rotation keeps them bounded.
 # Remove this section if you prefer leaner backups.
 #=================================================
-ynh_script_progression "Backing up UniFi log files..."
 
 ynh_backup --src_path="/var/log/unifi"
 
@@ -65,4 +64,4 @@ ynh_backup --src_path="/var/log/unifi"
 # END OF SCRIPT
 #=================================================
 
-ynh_script_progression "Backup of $app completed"
+ynh_print_info "Backup script completed for $app. (YunoHost will then actually copy those files to the archive)."

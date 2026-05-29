@@ -31,9 +31,10 @@ ram.runtime = "2G"
 [install]
 
     [install.domain]
-    # Generic question: YunoHost handles the ask string automatically
+    # UniFi cannot be installed at a sub-path — it needs its own domain.
+    # The path question is intentionally omitted: YunoHost will default
+    # to "/" and the nginx template is written for root-only installs.
     type = "domain"
-
 
     [install.init_main_permission]
     # UniFi manages its own login — expose to visitors so nginx just
@@ -88,19 +89,35 @@ ram.runtime = "2G"
     # ------------------------------------------------------------------
     [resources.apt]
 
-    # Bootstrap packages needed before any HTTPS repo can be reached.
-    # gnupg is required by ynh_install_extra_app_dependencies to dearmor keys.
-    packages = ["ca-certificates", "apt-transport-https", "gnupg"]
+    packages = [
+        "alsa-topology-conf", "alsa-ucm-conf", "fonts-dejavu-extra",
+        "java-common", "libasound2", "libasound2-data", "libxi6",
+        "libxrender1", "libxtst6", "p11-kit", "p11-kit-modules", "x11-common"
+    ]
 
+    extras.adoptium.repo = "deb https://packages.adoptium.net/artifactory/deb bookworm main"
+    extras.adoptium.key = "https://packages.adoptium.net/artifactory/api/gpg/key/public"
+    extras.adoptium.packages = ["adoptium-ca-certificates", "temurin-25-jre"]
+
+    extras.mongodb-server-8-0.repo = "deb https://repo.mongodb.org/apt/debian bookworm/mongodb-org/8.0 main"
+    extras.mongodb-server-8-0.key = "https://pgp.mongodb.com/server-8.0.asc"
+    extras.mongodb-server-8-0.packages = ["mongodb-org-server"]
+    
+    extras.unifi.repo = "deb https://www.ui.com/downloads/unifi/debian stable ubiquiti"
+    extras.unifi.key = "https://dl.ui.com/unifi/unifi-repo.gpg"
+    extras.unifi.packages = ["unifi"]
 
     # ------------------------------------------------------------------
     # Port 8443 is the UniFi web UI. Declared as fixed because UniFi
     # hard-codes it internally. YunoHost registers it to prevent
     # conflicts; nginx reverse-proxies it so it is NOT exposed directly.
     # ------------------------------------------------------------------
-    [resources.ports]
-    main.default = 8443
-    main.fixed   = true
+    # This config bugs because unifi installation start service and yunohost
+    # Identifies that 8443 port is already in use.
+    # [resources.ports]
+    # ui.default = 8443
+    # ui.exposed = false
+    # ui.fixed   = true
 
     # ------------------------------------------------------------------
     # auth_header = false prevents YunoHost from injecting SSO headers

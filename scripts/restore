@@ -48,25 +48,7 @@ ynh_config_add_nginx
 # The firewall state is not saved in the backup — ports must be
 # re-opened explicitly, mirroring the install script exactly.
 #=================================================
-ynh_script_progression "Re-opening firewall ports..."
-
-# Core ports — always required
-ynh_exec_warn_less yunohost firewall allow UDP 3478
-ynh_exec_warn_less yunohost firewall allow TCP 8080
-ynh_exec_warn_less yunohost firewall allow UDP 10001
-
-# Optional — guest portal
-if [ "${guest_portal:-0}" -eq 1 ]; then
-    ynh_script_progression "Re-opening guest portal firewall ports (8880, 8843)..."
-    ynh_exec_warn_less yunohost firewall allow TCP 8880
-    ynh_exec_warn_less yunohost firewall allow TCP 8843
-fi
-
-# Optional — speed test
-if [ "${speed_test:-0}" -eq 1 ]; then
-    ynh_script_progression "Re-opening speed test firewall port (6789)..."
-    ynh_exec_warn_less yunohost firewall allow TCP 6789
-fi
+ynh_unifi_open_ports
 
 #=================================================
 # RESTORE UNIFI DATA DIRECTORY
