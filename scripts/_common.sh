@@ -77,28 +77,29 @@ ynh_unifi_open_ports() {
     ynh_print_info "Opening required firewall ports..."
 
     # Required ports (always opened)
-    ynh_hide_warnings yunohost firewall open 3478 "Unifi STUN (Session Traversal Utilities for NAT)" -p udp
-    ynh_hide_warnings yunohost firewall open 8080 "Unifi device management traffic" -p tcp
-    ynh_hide_warnings yunohost firewall open 10001 "Unifi device discovery" -p udp
+    ynh_hide_warnings yunohost firewall open 3478 "Unifi STUN (Session Traversal Utilities for NAT)" -p udp --no-reload 
+    ynh_hide_warnings yunohost firewall open 8080 "Unifi device management traffic" -p tcp --no-reload 
+    ynh_hide_warnings yunohost firewall open 10001 "Unifi device discovery" -p udp --no-reload 
 
     # Optionnal ports
 
     ynh_print_info "Create guest portal firewall ports rules (8880, 8843)..."
-    ynh_hide_warnings yunohost firewall open 8880 "Unifi Hotspot portail redirection (HTTP)" -p tcp
-    ynh_hide_warnings yunohost firewall open 8843 "Unifi Hotspot portail redirection (HTTPS)" -p tcp
+    ynh_hide_warnings yunohost firewall open 8880 "Unifi Hotspot portail redirection (HTTP)" -p tcp --no-reload 
+    ynh_hide_warnings yunohost firewall open 8843 "Unifi Hotspot portail redirection (HTTPS)" -p tcp --no-reload 
     # Close thoses ports if not used (but will be still present in yunohost firewall config)
     if [ "$guest_portal" -eq 0 ]; then
-        ynh_hide_warnings yunohost firewall disallow TCP 8880
-        ynh_hide_warnings yunohost firewall disallow TCP 8843
+        ynh_hide_warnings yunohost firewall disallow TCP 8880 --no-reload 
+        ynh_hide_warnings yunohost firewall disallow TCP 8843 --no-reload 
     fi
 
     ynh_print_info "Create speed test firewall port rules (6789)..."
-    ynh_hide_warnings yunohost firewall open 6789 "Unifi mobile speed test" -p tcp
+    ynh_hide_warnings yunohost firewall open 6789 "Unifi mobile speed test" -p tcp --no-reload 
     # Close thoses ports if not used (but will be still present in yunohost firewall config)
     if [ "$speed_test" -eq 0 ]; then
-        ynh_hide_warnings yunohost firewall disallow TCP 6789
+        ynh_hide_warnings yunohost firewall disallow TCP 6789 --no-reload 
     fi
 
+    ynh_hide_warnings yunohost firewall reload
 }
 
 #=================================================
@@ -114,9 +115,9 @@ ynh_unifi_open_ports() {
 ynh_unifi_close_ports() {
     ynh_print_info "Closing firewall ports..."
 
-    ynh_hide_warnings yunohost firewall delete 3478 -p udp  || true
-    ynh_hide_warnings yunohost firewall delete 8080 -p tcp  || true
-    ynh_hide_warnings yunohost firewall delete 10001 -p udp || true
+    ynh_hide_warnings yunohost firewall delete 3478 -p udp --no-reload  || true
+    ynh_hide_warnings yunohost firewall delete 8080 -p tcp --no-reload  || true
+    ynh_hide_warnings yunohost firewall delete 10001 -p udp --no-reload || true
 
     # Guest portal ports — only close if the feature was enabled at install
     # (or later toggled on via the config panel). We try regardless with
@@ -124,12 +125,14 @@ ynh_unifi_close_ports() {
     if [ "${guest_portal:-0}" -eq 1 ]; then
         ynh_print_info "Closing guest portal firewall ports (8880, 8843)..."
     fi
-    ynh_hide_warnings yunohost firewall delete 8880 -p tcp  || true
-    ynh_hide_warnings yunohost firewall delete 8843 -p tcp  || true
+    ynh_hide_warnings yunohost firewall delete 8880 -p tcp --no-reload || true
+    ynh_hide_warnings yunohost firewall delete 8843 -p tcp --no-reload || true
 
     # Speed test port — same pattern
     if [ "${speed_test:-0}" -eq 1 ]; then
         ynh_print_info "Closing speed test firewall port (6789)..."
     fi
-    ynh_hide_warnings yunohost firewall delete 6789 -p tcp  || true
+    ynh_hide_warnings yunohost firewall delete 6789 -p tcp --no-reload || true
+
+    ynh_hide_warnings yunohost firewall reload
 }
