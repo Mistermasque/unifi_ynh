@@ -64,7 +64,7 @@ ynh_unifi_open_ports
 #=================================================
 ynh_script_progression "Restoring UniFi data directory..."
 
-ynh_restore_file --origin_path="/var/lib/unifi"
+ynh_restore "/var/lib/unifi"
 
 # Ensure ownership is correct after restore — the unifi package runs
 # as the "unifi" system user created by the package's post-install.
@@ -78,7 +78,7 @@ chown -R unifi:unifi "/var/lib/unifi"
 #=================================================
 ynh_script_progression "Restoring UniFi log files..."
 
-if ynh_restore_file --origin_path="/var/log/unifi" --not_mandatory; then
+if ynh_restore "/var/log/unifi"; then
     chown -R unifi:unifi "/var/log/unifi"
 fi
 

@@ -41,24 +41,20 @@ ynh_backup "/etc/nginx/conf.d/$domain.d/$app.conf"
 #
 # This directory is owned by the unifi Debian package, not by YunoHost
 # resources, so it must be declared explicitly here.
-#
-# --is_big signals to YunoHost that this source can be large (the
-# MongoDB data files grow with network size) so it is excluded from
-# the "light" backup strategy and the admin is warned about size.
 #=================================================
 
-ynh_backup --src_path="/var/lib/unifi" --is_big
+ynh_backup "/var/lib/unifi"
 
 #=================================================
 # BACKUP UNIFI LOGS
 #=================================================
 # Log files are not strictly required to restore a working controller
-# but are useful for post-incident analysis. Backed up without --is_big
+# but are useful for post-incident analysis.
 # because log rotation keeps them bounded.
 # Remove this section if you prefer leaner backups.
 #=================================================
 
-ynh_backup --src_path="/var/log/unifi"
+ynh_backup "/var/log/unifi"
 
 #=================================================
 # END OF SCRIPT
