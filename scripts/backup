@@ -30,18 +30,16 @@ ynh_print_info "Declaring files to be backed up..."
 ynh_backup "/etc/nginx/conf.d/$domain.d/$app.conf"
 
 #=================================================
-# BACKUP UNIFI BACKUP DIRECTORY
+# BACKUP UNIFI DATA DIRECTORY
 #=================================================
 # /var/lib/unifi is the single directory that holds everything UniFi
 # needs to restore a fully working controller:
 #
 #   db/     — MongoDB database files, system.properties, keystore
 #   backup/ — UniFi's own auto-backup archives (.unf files)
-#
-# We only backup the backup directory. Because restoring mongodb database block the service to be restarted, and cannot restore mongoDB database.
 #=================================================
 
-ynh_backup "/var/lib/unifi/backup"
+ynh_backup "/var/lib/unifi"
 
 #=================================================
 # BACKUP UNIFI LOGS

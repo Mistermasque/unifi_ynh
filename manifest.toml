@@ -18,8 +18,6 @@ admindoc = "https://help.ui.com/hc/en-us/articles/220066768"
 [integration]
 yunohost = ">= 12.0.9"
 helpers_version = "2.1"
-# UniFi only publishes amd64 packages via their official APT repository.
-# arm64 requires a manual .deb download and is not supported here.
 architectures = ["amd64", "arm64"]
 multi_instance = false
 ldap = false
@@ -36,9 +34,11 @@ ram.runtime = "2G"
     # to "/" and the nginx template is written for root-only installs.
     type = "domain"
 
-    [install.init_main_permission]
-    # UniFi manages its own login — expose to visitors so nginx just
-    # forwards traffic without an extra SSO layer in front.
+    [install.init_ui_permission]
+    # init_ui_permission matches the permission named "ui" in
+    # [resources.permissions] below (init_{NAME}_permission convention).
+    # UniFi manages its own authentication — default to "admins" so the
+    # nginx vhost is served but no SSO layer is inserted.
     type = "group"
     default = "admins"
 
@@ -61,74 +61,71 @@ ram.runtime = "2G"
 [resources]
 
     # ------------------------------------------------------------------
-    # [resources.apt] — all three external repositories are declared
-    # here using the YunoHost `extras` mechanism.
+    # [resources.apt]
     #
-    # How `extras` works at runtime:
-    #   1. YunoHost downloads the `key` URL and dearmors it to
-    #      /etc/apt/trusted.gpg.d/<name>.gpg
-    #   2. It writes a one-liner to
-    #      /etc/apt/sources.list.d/<app>-<name>.list
-    #      using the `repo` string verbatim.
-    #   3. It runs `apt-get update` then installs `packages`.
-    #   4. On app removal it undoes steps 1-3 automatically.
+    # YunoHost provisions resources in this order:
+    #   ports → permissions → apt
     #
-    # The repo one-liner supports inline APT options such as
-    # [ arch=amd64 signed-by=/path ] — we use this to pin each repo
-    # to amd64 only (UniFi, Adoptium) or to the current arch (MongoDB).
+    # Port 8443 is therefore booked BEFORE apt installs unifi. However,
+    # the unifi package's post-install script starts the service which
+    # then binds 8443. YunoHost detects the port is held by an unexpected
+    # process and raises a conflict error.
     #
-    # MongoDB's suite includes the Debian codename (e.g.
-    # "bookworm/mongodb-org/8.0"). Since `extras.repo` is a static
-    # string, we cannot interpolate $VERSION_CODENAME there directly.
-    # `packages_from_raw_bash` runs as bash at provisioning time so we
-    # use it to emit nothing (packages are already listed in `packages`)
-    # while capturing the codename — but the suite must be static.
-    # Solution: we hardcode "bookworm" (Debian 12) which is the current
-    # YunoHost base. Add a comment to update this when YunoHost moves
-    # to trixie (Debian 13).
+    # The fix lives in the install script: it stops the auto-started
+    # service immediately as its very first action (before touching nginx
+    # or firewall), then re-starts it cleanly at the end. At that point
+    # the port is already registered to this app so no conflict is raised.
     # ------------------------------------------------------------------
     [resources.apt]
-
     packages = [
         "alsa-topology-conf", "alsa-ucm-conf", "fonts-dejavu-extra",
         "java-common", "libasound2", "libasound2-data", "libxi6",
         "libxrender1", "libxtst6", "p11-kit", "p11-kit-modules", "x11-common"
     ]
 
-    extras.adoptium.repo = "deb https://packages.adoptium.net/artifactory/deb bookworm main"
-    extras.adoptium.key = "https://packages.adoptium.net/artifactory/api/gpg/key/public"
+    extras.adoptium.repo     = "deb https://packages.adoptium.net/artifactory/deb bookworm main"
+    extras.adoptium.key      = "https://packages.adoptium.net/artifactory/api/gpg/key/public"
     extras.adoptium.packages = ["adoptium-ca-certificates", "temurin-25-jre"]
 
-    extras.mongodb-server-8-0.repo = "deb https://repo.mongodb.org/apt/debian bookworm/mongodb-org/8.0 main"
-    extras.mongodb-server-8-0.key = "https://pgp.mongodb.com/server-8.0.asc"
-    extras.mongodb-server-8-0.packages = ["mongodb-org-server"]
-    
-    extras.unifi.repo = "deb https://www.ui.com/downloads/unifi/debian stable ubiquiti"
-    extras.unifi.key = "https://dl.ui.com/unifi/unifi-repo.gpg"
+    # MongoDB 8.0 — amd64
+    # Official Debian bookworm repo, pinned to amd64 only.
+    extras.mongodb-amd64.repo     = "deb [ arch=amd64 ] https://repo.mongodb.org/apt/debian bookworm/mongodb-org/8.0 main"
+    extras.mongodb-amd64.key      = "https://pgp.mongodb.com/server-8.0.asc"
+    extras.mongodb-amd64.packages = ["mongodb-org-server"]
+
+    # MongoDB 8.0 — arm64 (Raspberry Pi 4 and other aarch64 boards)
+    # MongoDB does not publish arm64 packages for Debian bookworm.
+    # The Ubuntu 22.04 (jammy) repo does publish arm64 packages and is
+    # compatible enough with Debian bookworm to work reliably.
+    # Pinned to arch=arm64 so it is silently ignored on amd64 hosts.
+    extras.mongodb-arm64.repo     = "deb [ arch=arm64 ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/8.0 multiverse"
+    extras.mongodb-arm64.key      = "https://pgp.mongodb.com/server-8.0.asc"
+    extras.mongodb-arm64.packages = ["mongodb-org-server"]
+
+    extras.unifi.repo     = "deb https://www.ui.com/downloads/unifi/debian stable ubiquiti"
+    extras.unifi.key      = "https://dl.ui.com/unifi/unifi-repo.gpg"
     extras.unifi.packages = ["unifi"]
 
     # ------------------------------------------------------------------
-    # Port 8443 is the UniFi web UI. Declared as fixed because UniFi
-    # hard-codes it internally. YunoHost registers it to prevent
-    # conflicts; nginx reverse-proxies it so it is NOT exposed directly.
+    # Port named "ui" → available in scripts as $port_ui (not $port).
+    # exposed = false: reverse-proxied by nginx, never opened directly.
+    # fixed = true: UniFi hard-codes 8443 internally.
     # ------------------------------------------------------------------
-    # This config bugs because unifi installation start service and yunohost
-    # Identifies that 8443 port is already in use.
-    # [resources.ports]
-    # ui.default = 8443
-    # ui.exposed = false
-    # ui.fixed   = true
+    [resources.ports]
+    ui.default = 8443
+    ui.exposed = false
+    ui.fixed   = true
 
     # ------------------------------------------------------------------
-    # auth_header = false prevents YunoHost from injecting SSO headers
-    # that would confuse UniFi's own login page.
+    # Permission named "ui" → init question is init_ui_permission.
+    # auth_header = false: no SSO header injection in front of UniFi.
     # ------------------------------------------------------------------
     [resources.permissions]
-    main.url = "/"
-    main.auth_header = false
+    ui.url         = "/"
+    ui.auth_header = false
 
     # ------------------------------------------------------------------
     # No [resources.system_user] or [resources.install_dir]:
-    # the unifi Debian package manages its own "unifi" system user and
-    # writes to /var/lib/unifi, /var/log/unifi, /var/run/unifi itself.
+    # the unifi package manages its own "unifi" system user and writes
+    # to /var/lib/unifi, /var/log/unifi, /var/run/unifi itself.
     # ------------------------------------------------------------------
