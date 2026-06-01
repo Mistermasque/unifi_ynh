@@ -29,7 +29,7 @@ ynh_script_progression "Stopping UniFi service before data restore..."
 ynh_systemctl --service="unifi" --action="stop"
 
 # Also stop mongod if it runs as a separate unit (some versions do)
-systemctl stop mongod 2>/dev/null || true
+ynh_systemctl --service="mongod" --action="stop"
 
 #=================================================
 # RESTORE NGINX CONFIGURATION
@@ -51,20 +51,14 @@ ynh_config_add_nginx
 ynh_unifi_open_ports
 
 #=================================================
-# RESTORE UNIFI DATA DIRECTORY
+# RESTORE UNIFI BACKUP DIRECTORY
 #=================================================
-# Overwrites /var/lib/unifi with the backed-up content.
-# This restores the full controller state: network topology, adopted
-# device records, WiFi/VLAN configuration, system.properties, keystore,
-# and UniFi's own auto-backup archives.
-#
-# The unifi package creates /var/lib/unifi during installation, so the
-# directory already exists. ynh_restore_file will overwrite it.
-# chown/chmod are set to match what the package expects.
+# Storing /var/lib/unifi directory block service to be restarted.
+# cannot restore mongoDB database.
 #=================================================
-ynh_script_progression "Restoring UniFi data directory..."
+ynh_script_progression "Restoring UniFi backup directory..."
 
-ynh_restore "/var/lib/unifi"
+ynh_restore "/var/lib/unifi/backup"
 
 # Ensure ownership is correct after restore — the unifi package runs
 # as the "unifi" system user created by the package's post-install.
@@ -103,11 +97,10 @@ yunohost service add unifi \
 # The first start after a restore may be slower than usual because
 # MongoDB may need to replay its journal before accepting connections.
 #=================================================
-ynh_script_progression "Starting UniFi service..."
+ynh_script_progression "Starting UniFi service (this may take a while)..."
 
+ynh_systemctl --service="mongod" --action="start"
 ynh_systemctl --service="unifi" --action="start"
-
-ynh_unifi_wait_until_active
 
 #=================================================
 # END OF SCRIPT

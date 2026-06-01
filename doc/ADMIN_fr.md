@@ -77,13 +77,10 @@ yunohost backup create --apps unifi
 yunohost backup restore <nom_sauvegarde> --apps unifi
 ```
 
-> **Attention :** `/var/lib/unifi` peut devenir volumineux sur les réseaux avec de nombreux
-> équipements ou une longue rétention des statistiques. Vérifiez l'espace disque disponible
-> avant d'effectuer une sauvegarde.
+> **Attention :** La sauvegarde de l'application via Yunohost ne sauvegarde QUE LE DOSSIER backups de Unifi Network.
+> Ce qui signifie qu'une fois la restauration réalisée. Il faudra refaire la phase d'initialisation
+> du Network pour ensuite restaurer le backup directement dans l'application via les fichiers `.unf`.
 
-UniFi maintient également ses propres sauvegardes internes sous `/var/lib/unifi/data/backup/`.
-Ces fichiers `.unf` peuvent être restaurés directement depuis l'interface web UniFi,
-indépendamment du système de sauvegarde YunoHost.
 
 ---
 
