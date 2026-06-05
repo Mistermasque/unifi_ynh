@@ -201,8 +201,7 @@ ynh_unifi_remove_deps() {
 
     if grep -q "Raspberry" "/sys/firmware/devicetree/base/model" > /dev/null 2>&1; then
         ynh_print_info "Removing mongodb and rng-tools packages..."
-        apt-get remove --purge -y mongodb-org-server
-        apt-get remove --purge -y rng-tools
+        apt-get remove --purge -y mongodb-org-server libssl1.1 rng-tools
     fi
 
     ynh_print_info "Remove dependant packages..."
