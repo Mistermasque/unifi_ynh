@@ -167,13 +167,13 @@ ynh_unifi_install_deps() {
         # So we install it manually
         wget https://repo.mongodb.org/apt/ubuntu/dists/focal/mongodb-org/4.4/multiverse/binary-arm64/mongodb-org-server_4.4.18_arm64.deb -O /tmp/mongodb-org-server_4.4.18_arm64.deb 2>&1
         dpkg -i /tmp/mongodb-org-server_4.4.18_arm64.deb
-        ynh_systemctl --service="unifi" --action="enable"
-        ynh_systemctl --service="unifi" --action="start"
+        ynh_systemctl --service="mongod" --action="enable"
+        ynh_systemctl --service="mongod" --action="start"
 
         rm -f /tmp/mongodb-org-server_4.4.18_arm64.deb
 
         # To improve the startup speed of the UniFi controller software on our Raspberry Pi, we need to install rng-tools.
-        ynh_print_info "Install rgn-tools..."
+        ynh_print_info "Install rng-tools..."
         apt-get install rng-tools -y
         ynh_replace --file='/etc/default/rng-tools-debian' --match='^#HRNGDEVICE=/dev/hwrng' --replace='HRNGDEVICE=/dev/hwrng'
     else
@@ -182,10 +182,8 @@ ynh_unifi_install_deps() {
 
         curl -fsSL https://pgp.mongodb.com/server-8.0.asc | \
         gpg --dearmor --yes -o /etc/apt/trusted.gpg.d/mongodb-org-8.0.gpg
-            
 
         echo 'deb [ signed-by=/etc/apt/trusted.gpg.d/mongodb-org-8.0.gpg ] https://repo.mongodb.org/apt/debian bookworm/mongodb-org/8.0 main' >> /etc/apt/sources.list.d/unifi.list
-
     fi
 
     ynh_print_info "Install Unifi package..."
@@ -200,7 +198,7 @@ ynh_unifi_remove_deps() {
     apt-get remove --purge -y unifi
 
     if grep -q "Raspberry" "/sys/firmware/devicetree/base/model" > /dev/null 2>&1; then
-        ynh_print_info "Removing mongodb and rgn-tools packages..."
+        ynh_print_info "Removing mongodb and rng-tools packages..."
         apt-get remove --purge -y mongodb-org-server
         apt-get remove --purge -y rng-tools
     fi
