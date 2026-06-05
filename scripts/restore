@@ -32,6 +32,16 @@ ynh_systemctl --service="unifi" --action="stop"
 ynh_systemctl --service="mongod" --action="stop"
 
 #=================================================
+# DOWNLOAD, CHECK AND UNPACK SOURCE
+#=================================================
+
+# Cannot use package installation on manifest because it is incompatible with raspberry due to
+# multiarchitecture installation
+ynh_script_progression "Provisionning apt dependencies..."
+
+ynh_unifi_install_deps
+
+#=================================================
 # RESTORE NGINX CONFIGURATION
 #=================================================
 # Re-generates the reverse-proxy vhost from conf/nginx.conf using the

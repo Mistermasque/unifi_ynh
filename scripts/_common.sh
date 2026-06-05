@@ -136,3 +136,87 @@ ynh_unifi_close_ports() {
 
     ynh_hide_warnings yunohost firewall reload
 }
+
+ynh_unifi_install_deps() {
+    ynh_print_info "Add Adoptium repository..."
+
+    mkdir --parent /etc/apt/trusted.gpg.d/
+    mkdir --parent /etc/apt/sources.list.d/
+
+    curl -fsSL https://packages.adoptium.net/artifactory/api/gpg/key/public | \
+    gpg --dearmor --yes -o /etc/apt/trusted.gpg.d/adoptium.gpg
+
+    echo 'deb [ signed-by=/etc/apt/trusted.gpg.d/adoptium.gpg ] https://packages.adoptium.net/artifactory/deb bookworm main' > /etc/apt/sources.list.d/unifi.list
+
+    ynh_print_info "Add Unifi repository..."
+
+    curl -fsSL https://dl.ui.com/unifi/unifi-repo.gpg | \
+    gpg -o /etc/apt/trusted.gpg.d/unifi.gpg \
+    --dearmor
+
+    # Force architecture to amd64 because unifi doesn't provide arm64 package but it is compatible due to java usage
+    echo 'deb [ arch=amd64 signed-by=/etc/apt/trusted.gpg.d/unifi.gpg ] https://www.ui.com/downloads/unifi/debian stable ubiquiti' >> /etc/apt/sources.list.d/unifi.list
+
+    # If we are on a raspberry we need to change mongodb server version
+    # https://pimylifeup.com/rasberry-pi-unifi/
+    if grep -q "Raspberry" "/sys/firmware/devicetree/base/model" > /dev/null 2>&1; then
+
+        ynh_print_info "Install Mongodb 4.4.18..."
+
+        # Installation throught repo block unifi startup
+        # So we install it manually
+        wget https://repo.mongodb.org/apt/ubuntu/dists/focal/mongodb-org/4.4/multiverse/binary-arm64/mongodb-org-server_4.4.18_arm64.deb -O /tmp/mongodb-org-server_4.4.18_arm64.deb 2>&1
+        dpkg -i /tmp/mongodb-org-server_4.4.18_arm64.deb
+        ynh_systemctl --service="unifi" --action="enable"
+        ynh_systemctl --service="unifi" --action="start"
+
+        rm -f /tmp/mongodb-org-server_4.4.18_arm64.deb
+
+        # To improve the startup speed of the UniFi controller software on our Raspberry Pi, we need to install rng-tools.
+        ynh_print_info "Install rgn-tools..."
+        apt-get install rng-tools -y
+        ynh_replace --file='/etc/default/rng-tools-debian' --match='^#HRNGDEVICE=/dev/hwrng' --replace='HRNGDEVICE=/dev/hwrng'
+    else
+
+        ynh_print_info "Add mongodb repository..."
+
+        curl -fsSL https://pgp.mongodb.com/server-8.0.asc | \
+        gpg --dearmor --yes -o /etc/apt/trusted.gpg.d/mongodb-org-8.0.gpg
+            
+
+        echo 'deb [ signed-by=/etc/apt/trusted.gpg.d/mongodb-org-8.0.gpg ] https://repo.mongodb.org/apt/debian bookworm/mongodb-org/8.0 main' >> /etc/apt/sources.list.d/unifi.list
+
+    fi
+
+    ynh_print_info "Install Unifi package..."
+
+    apt-get update
+    apt-get install unifi -y
+}
+
+ynh_unifi_remove_deps() {
+    ynh_print_info "Removing unifi package..."
+
+    apt-get remove --purge -y unifi
+
+    if grep -q "Raspberry" "/sys/firmware/devicetree/base/model" > /dev/null 2>&1; then
+        ynh_print_info "Removing mongodb and rgn-tools packages..."
+        apt-get remove --purge -y mongodb-org-server
+        apt-get remove --purge -y rng-tools
+    fi
+
+    ynh_print_info "Remove dependant packages..."
+
+    apt-get autoremove -y
+
+    ynh_print_info "Remove unifi, adoptium, mongodb repository..."
+
+    ynh_safe_rm "/etc/apt/trusted.gpg.d/mongodb-server-8.0.gpg"
+    ynh_safe_rm "/etc/apt/trusted.gpg.d/unifi.gpg"
+    ynh_safe_rm "/etc/apt/trusted.gpg.d/adoptium.gpg"
+    ynh_safe_rm "/etc/apt/sources.list.d/unifi.list"
+
+    ynh_print_info "Updating apt..."
+
+    apt-get update
+}

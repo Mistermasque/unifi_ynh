@@ -34,8 +34,8 @@ ram.runtime = "2G"
     # to "/" and the nginx template is written for root-only installs.
     type = "domain"
 
-    [install.init_ui_permission]
-    # init_ui_permission matches the permission named "ui" in
+    [install.init_main_permission]
+    # init_main_permission matches the permission named "main" in
     # [resources.permissions] below (init_{NAME}_permission convention).
     # UniFi manages its own authentication — default to "admins" so the
     # nginx vhost is served but no SSO layer is inserted.
@@ -75,36 +75,39 @@ ram.runtime = "2G"
     # service immediately as its very first action (before touching nginx
     # or firewall), then re-starts it cleanly at the end. At that point
     # the port is already registered to this app so no conflict is raised.
+    #
+    # Yunohost resource provisionning for packages are inhibited cause
+    # of specific installation on raspberry which needs to download directly some packages
     # ------------------------------------------------------------------
-    [resources.apt]
-    packages = [
-        "alsa-topology-conf", "alsa-ucm-conf", "fonts-dejavu-extra",
-        "java-common", "libasound2", "libasound2-data", "libxi6",
-        "libxrender1", "libxtst6", "p11-kit", "p11-kit-modules", "x11-common"
-    ]
+    # [resources.apt]
+    # packages = [
+    #     "alsa-topology-conf", "alsa-ucm-conf", "fonts-dejavu-extra",
+    #     "java-common", "libasound2", "libasound2-data", "libxi6",
+    #     "libxrender1", "libxtst6", "p11-kit", "p11-kit-modules", "x11-common"
+    # ]
 
-    extras.adoptium.repo     = "deb https://packages.adoptium.net/artifactory/deb bookworm main"
-    extras.adoptium.key      = "https://packages.adoptium.net/artifactory/api/gpg/key/public"
-    extras.adoptium.packages = ["adoptium-ca-certificates", "temurin-25-jre"]
+    # extras.adoptium.repo     = "deb https://packages.adoptium.net/artifactory/deb bookworm main"
+    # extras.adoptium.key      = "https://packages.adoptium.net/artifactory/api/gpg/key/public"
+    # extras.adoptium.packages = ["adoptium-ca-certificates", "temurin-25-jre"]
 
     # MongoDB 8.0 — amd64
     # Official Debian bookworm repo, pinned to amd64 only.
-    extras.mongodb-amd64.repo     = "deb [ arch=amd64 ] https://repo.mongodb.org/apt/debian bookworm/mongodb-org/8.0 main"
-    extras.mongodb-amd64.key      = "https://pgp.mongodb.com/server-8.0.asc"
-    extras.mongodb-amd64.packages = ["mongodb-org-server"]
+    # extras.mongodb-amd64.repo     = "deb [ arch=amd64 ] https://repo.mongodb.org/apt/debian bookworm/mongodb-org/8.0 main"
+    # extras.mongodb-amd64.key      = "https://pgp.mongodb.com/server-8.0.asc"
+    # extras.mongodb-amd64.packages = ["mongodb-org-server"]
 
     # MongoDB 8.0 — arm64 (Raspberry Pi 4 and other aarch64 boards)
     # MongoDB does not publish arm64 packages for Debian bookworm.
     # The Ubuntu 22.04 (jammy) repo does publish arm64 packages and is
     # compatible enough with Debian bookworm to work reliably.
     # Pinned to arch=arm64 so it is silently ignored on amd64 hosts.
-    extras.mongodb-arm64.repo     = "deb [ arch=arm64 ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/8.0 multiverse"
-    extras.mongodb-arm64.key      = "https://pgp.mongodb.com/server-8.0.asc"
-    extras.mongodb-arm64.packages = ["mongodb-org-server"]
+    # extras.mongodb-arm64.repo     = "deb [ arch=arm64 ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/8.0 multiverse"
+    # extras.mongodb-arm64.key      = "https://pgp.mongodb.com/server-8.0.asc"
+    # extras.mongodb-arm64.packages = ["mongodb-org-server"]
 
-    extras.unifi.repo     = "deb https://www.ui.com/downloads/unifi/debian stable ubiquiti"
-    extras.unifi.key      = "https://dl.ui.com/unifi/unifi-repo.gpg"
-    extras.unifi.packages = ["unifi"]
+    # extras.unifi.repo     = "deb https://www.ui.com/downloads/unifi/debian stable ubiquiti"
+    # extras.unifi.key      = "https://dl.ui.com/unifi/unifi-repo.gpg"
+    # extras.unifi.packages = ["unifi"]
 
     # ------------------------------------------------------------------
     # Port named "ui" → available in scripts as $port_ui (not $port).
@@ -117,12 +120,12 @@ ram.runtime = "2G"
     ui.fixed   = true
 
     # ------------------------------------------------------------------
-    # Permission named "ui" → init question is init_ui_permission.
+    # Permission named "ui" → init question is init_main_permission.
     # auth_header = false: no SSO header injection in front of UniFi.
     # ------------------------------------------------------------------
     [resources.permissions]
-    ui.url         = "/"
-    ui.auth_header = false
+    main.url         = "/"
+    main.auth_header = false
 
     # ------------------------------------------------------------------
     # No [resources.system_user] or [resources.install_dir]:

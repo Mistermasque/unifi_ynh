@@ -80,6 +80,13 @@ if [ "${YNH_APP_PURGE:-0}" -eq 1 ]; then
 fi
 
 #=================================================
+# REMOVE APPLICATION PACKAGE
+#=================================================
+ynh_script_progression "Deprovisioning apt dependencies..."
+
+ynh_unifi_remove_deps
+
+#=================================================
 # END OF SCRIPT
 #=================================================
 

@@ -13,8 +13,16 @@ source /usr/share/yunohost/helpers
 ###   $guest_portal  — "1" or "0"  (boolean install question)
 ###   $speed_test    — "1" or "0"  (boolean install question)
 ###
-### The three APT repositories (MongoDB, Adoptium, UniFi) and their
-### packages are fully provisioned by [resources.apt] in the manifest
+
+#=================================================
+# DOWNLOAD, CHECK AND UNPACK SOURCE
+#=================================================
+
+# Cannot use package installation on manifest because it is incompatible with raspberry due to
+# multiarchitecture installation
+ynh_script_progression "Provisionning apt dependencies..."
+
+ynh_unifi_install_deps
 
 
 #=================================================
