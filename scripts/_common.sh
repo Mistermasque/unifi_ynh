@@ -163,6 +163,8 @@ ynh_unifi_install_deps() {
 
         ynh_print_info "Install Mongodb 4.4.18..."
 
+        apt-get install libssl1.1 -y
+
         # Installation throught repo block unifi startup
         # So we install it manually
         wget https://repo.mongodb.org/apt/ubuntu/dists/focal/mongodb-org/4.4/multiverse/binary-arm64/mongodb-org-server_4.4.18_arm64.deb -O /tmp/mongodb-org-server_4.4.18_arm64.deb 2>&1
