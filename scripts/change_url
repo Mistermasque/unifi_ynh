@@ -1,0 +1,81 @@
+#!/bin/bash
+
+#=================================================
+# IMPORT GENERIC HELPERS
+#=================================================
+
+source _common.sh
+source /usr/share/yunohost/helpers
+
+### When an admin changes the app's URL (domain and/or path), YunoHost
+### calls this script. Variables available:
+###   $old_domain    — previous domain
+###   $domain        — new domain
+###   $old_path      — previous path (always "/" for UniFi)
+###   $path          — new path (always "/" for UniFi)
+###
+### Other settings ($port, $guest_portal, $speed_test) remain unchanged.
+
+#=================================================
+# VALIDATE THAT PATH CANNOT CHANGE
+#=================================================
+# UniFi requires a dedicated domain with "/" path.
+# The manifest omits the path question entirely, forcing "/" always.
+# Attempting to change the path is a configuration error.
+#=================================================
+if [ "$old_path" != "$path" ]; then
+    ynh_die "UniFi does not support installation at a sub-path. The path must remain '/'. Aborting URL change."
+fi
+
+#=================================================
+# STOP THE SERVICE
+#=================================================
+# Stop unifi before updating nginx configuration to ensure a clean reload.
+# Ignore errors in case the service was already stopped.
+#=================================================
+ynh_script_progression "Stopping UniFi service..."
+
+ynh_systemctl --service="unifi" --action="stop" || true
+
+#=================================================
+# UPDATE NGINX CONFIGURATION
+#=================================================
+# Remove the old nginx vhost for the previous domain, then create a new
+# one for the new domain using conf/nginx.conf template with the updated
+# variables ($domain, $path, $port_ui).
+#=================================================
+ynh_script_progression "Updating nginx configuration for new domain..."
+
+ynh_config_remove_nginx
+ynh_config_add_nginx
+
+#=================================================
+# RE-REGISTER YUNOHOST SERVICE INTEGRATION
+#=================================================
+# The service registration includes the original domain context.
+# Re-register to ensure consistency with the new domain configuration.
+#=================================================
+ynh_script_progression "Re-registering UniFi service in YunoHost..."
+
+yunohost service add unifi \
+    --description="UniFi Network Controller" \
+    --log="/var/log/unifi/server.log"
+
+#=================================================
+# RESTART SERVICE
+#=================================================
+# Start unifi and wait for it to become active.
+#=================================================
+ynh_script_progression "Starting UniFi service..."
+
+ynh_systemctl --service="unifi" --action="start"
+
+ynh_script_progression "Waiting for UniFi service to be ready..."
+
+ynh_unifi_wait_until_active
+
+#=================================================
+# END OF SCRIPT
+#=================================================
+
+ynh_script_progression "URL change for $app completed"
