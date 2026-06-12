@@ -69,6 +69,7 @@ ynh_unifi_open_ports
 ynh_script_progression "Restoring UniFi backup directory..."
 
 ynh_restore "/var/lib/unifi/backup"
+ynh_restore "/var/lib/unifi/sites"
 
 # Ensure ownership is correct after restore — the unifi package runs
 # as the "unifi" system user created by the package's post-install.
